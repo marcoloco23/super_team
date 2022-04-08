@@ -1,0 +1,182 @@
+from typing import Optional
+from pydantic import BaseModel
+
+
+class PlayerPercentages(BaseModel):
+    PCT_FGA_2PT: float
+    PCT_AST_2PM: float
+    PCT_PTS_2PT: float
+    AST_PCT: float
+    PCT_FG3M: float
+    PCT_BLKA: float
+    PCT_BLK: float
+    FG3_PCT: float
+    PCT_PTS: float
+    PCT_FGM: float
+    PCT_REB: float
+    PCT_FGA: float
+    E_USG_PCT: float
+    REB_PCT: float
+    PCT_PTS_OFF_TOV: float
+    PCT_DREB: float
+    OPP_OREB_PCT: float
+    PCT_UAST_3PM: float
+    PCT_TOV: float
+    DREB_PCT: float
+    PCT_FTM: float
+    OPP_TOV_PCT: float
+    PCT_UAST_2PM: float
+    PCT_AST_3PM: float
+    USG_PCT: float
+    PCT_AST: float
+    FG_PCT: float
+    EFG_PCT: float
+    TS_PCT: float
+    PCT_OREB: float
+    PCT_PTS_2PT_MR: float
+    PCT_PF: float
+    FT_PCT: float
+    PCT_PTS_PAINT: float
+    PCT_PTS_FT: float
+    PCT_PFD: float
+    PCT_FGA_3PT: float
+    OPP_EFG_PCT: float
+    CFG_PCT: float
+    TM_TOV_PCT: float
+    PCT_UAST_FGM: float
+    PCT_PTS_3PT: float
+    OREB_PCT: float
+    PCT_PTS_FB: float
+    PCT_AST_FGM: float
+    UFG_PCT: float
+    PCT_FG3A: float
+    PCT_STL: float
+    DFG_PCT: float
+
+
+class TeamPercentages(BaseModel):
+    PCT_FGA_2PT: float
+    PCT_AST_2PM: float
+    PCT_PTS_2PT: float
+    AST_PCT: float
+    FG3_PCT: float
+    REB_PCT: float
+    PCT_PTS_OFF_TOV: float
+    OPP_OREB_PCT: float
+    PCT_UAST_3PM: float
+    DREB_PCT: float
+    OPP_TOV_PCT: float
+    PCT_UAST_2PM: float
+    PCT_AST_3PM: float
+    FG_PCT: float
+    EFG_PCT: float
+    TS_PCT: float
+    PCT_PTS_2PT_MR: float
+    FT_PCT: float
+    PCT_PTS_PAINT: float
+    PCT_PTS_FT: float
+    PCT_FGA_3PT: float
+    OPP_EFG_PCT: float
+    CFG_PCT: float
+    TM_TOV_PCT: float
+    PCT_UAST_FGM: float
+    PCT_PTS_3PT: float
+    OREB_PCT: float
+    PCT_PTS_FB: float
+    PCT_AST_FGM: float
+    UFG_PCT: float
+    DFG_PCT: float
+
+
+class Ratings(BaseModel):
+    E_OFF_RATING: float
+    OFF_RATING: float
+    E_NET_RATING: float
+    E_DEF_RATING: float
+    NET_RATING: float
+    DEF_RATING: float
+
+
+class Misc(BaseModel):
+    E_PACE: float
+    AST_RATIO: float
+    DIST: float
+    AST_TOV: float
+    FTA_RATE: float
+    OPP_FTA_RATE: float
+    MIN: float
+    PACE_PER40: float
+    PACE: float
+    PIE: float
+
+
+class AbsoluteStatistics(BaseModel):
+    OREB: int
+    AST: int
+    REB: int
+    DFGA: int
+    SAST: int
+    OPP_PTS_2ND_CHANCE: int
+    PFD: int
+    TO: int
+    FG3A: int
+    STL: int
+    POSS: int
+    PASS: int
+    UFGM: int
+    FG3M: int
+    PTS: int
+    UFGA: int
+    DRBC: int
+    OPP_PTS_PAINT: int
+    FTM: int
+    ORBC: int
+    BLKA: int
+    PTS_FB: int
+    CFGA: int
+    PTS_PAINT: int
+    TCHS: int
+    CFGM: int
+    PLUS_MINUS: int
+    DFGM: int
+    OPP_PTS_OFF_TOV: int
+    PTS_OFF_TOV: int
+    FGA: int
+    FTA: int
+    PTS_2ND_CHANCE: int
+    FGM: int
+    PF: int
+    DREB: int
+    BLK: int
+    RBC: int
+    OPP_PTS_FB: int
+    FTAST: int
+
+
+class PlayerPerformance(BaseModel):
+    GAME_ID: str
+    GAME_DATE: str
+    TEAM_ID: int
+    TEAM_ABBREVIATION: str
+    TEAM_CITY: str
+    PLAYER_ID: int
+    PLAYER_NAME: str
+    NICKNAME: str
+    START_POSITION: str
+    PERCENTAGES: PlayerPercentages
+    ABSOLUTE_STATISTICS: AbsoluteStatistics
+    RATINGS: Ratings
+    MISC: Misc
+
+
+class TeamPerformance(BaseModel):
+    GAME_ID: str
+    GAME_DATE: str
+    TEAM_ID: int
+    TEAM_NAME: str
+    TEAM_ABBREVIATION: str
+    TEAM_CITY: str
+    PERCENTAGES: TeamPercentages
+    ABSOLUTE_STATISTICS: AbsoluteStatistics
+    RATINGS: Ratings
+    MISC: Misc
