@@ -47,6 +47,7 @@ nba_games = leaguegamefinder.LeagueGameFinder(
 ).get_data_frames()[0]
 game_ids = nba_games.GAME_ID.to_list()
 
+print("Loading Database...")
 existing_player_performances = list(
     db.playerPerformances.find({}, projection=["GAME_ID", "PLAYER_ID"])
 )
@@ -64,6 +65,7 @@ else:
     existing_game_ids = []
 
 for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
+    # time.sleep(2)
     game_date = list(set(nba_games[nba_games.GAME_ID == game_id].GAME_DATE))[0]
     if counter == 100:
         # Upload Data

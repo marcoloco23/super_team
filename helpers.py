@@ -70,10 +70,10 @@ def get_player_and_team_box_scores(box_scores):
 
 
 def flatten_performance_df(performance_df):
-    if len(performance_df.columns) == 9:
-        i = 5
-    if len(performance_df.columns) == 12:
-        i = 8
+    if len(performance_df.columns) == 10:
+        i = 6
+    if len(performance_df.columns) == 13:
+        i = 9
     percentages = performance_df.PERCENTAGES.apply(pd.Series)
     absolutes_stats = performance_df.ABSOLUTE_STATISTICS.apply(pd.Series)
     ratings = performance_df.RATINGS.apply(pd.Series)
@@ -86,10 +86,10 @@ def flatten_performance_df(performance_df):
 
 
 def get_performances_by_team(performance_df):
-    if len(performance_df.columns) == 92:
-        i = 5
-    if len(performance_df.columns) == 113:
-        i = 8
+    if len(performance_df.columns) == 93:
+        i = 6
+    if len(performance_df.columns) == 114:
+        i = 9
     team_list = performance_df["TEAM_ABBREVIATION"].astype("category").cat.categories
     team_1_performances = performance_df[
         performance_df["TEAM_ABBREVIATION"] == team_list[0]
