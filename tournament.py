@@ -126,3 +126,4 @@ def run_tournament(performances, rounds=1, team_count=32, team_size=13):
 
 
 winners = run_tournament(average_performances, rounds=10, team_size=13)
+print(winners)
