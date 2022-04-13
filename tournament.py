@@ -9,21 +9,17 @@ from nba_api.stats.static import players
 from helpers import (
     flatten_performance_df,
     get_average_player_performances,
-    get_team_features,
     stack_df,
-    make_data_relative,
 )
 import numpy as np
-import joblib
 import xgboost as xgb
 from tqdm import tqdm
 from nba_api.stats.endpoints import leaguegamefinder
 
-print("Loading Models...")
+print("Loading Model...")
 
-model = joblib.load("models/team_13_300.pkl")
-relative_master_model = xgb.XGBRegressor()
-relative_master_model.load_model("models/master_model.json")
+model = xgb.XGBRegressor()
+model.load_model("models/13_player_model.json")
 
 gamefinder = leaguegamefinder.LeagueGameFinder()
 all_games = gamefinder.get_data_frames()[0]
@@ -84,19 +80,31 @@ def run_tournament(performances, rounds=1, team_count=32, team_size=13):
                     "\nTeam B: ",
                     teamB.sort_values("MIN", ascending=False).PLAYER_NAME.to_list(),
                 )
-
-                team_A_predicted_features = get_team_features(
-                    model, stack_df(team_A_features)
+                team_A_feature_df = pd.concat(
+                    [
+                        stack_df(
+                            pd.concat([team_A_features, team_B_features]).reset_index(
+                                drop=True
+                            )
+                        )
+                    ],
+                    axis=1,
                 )
-                team_B_predicted_features = get_team_features(
-                    model, stack_df(team_B_features)
+                team_B_feature_df = pd.concat(
+                    [
+                        stack_df(
+                            pd.concat([team_B_features, team_A_features]).reset_index(
+                                drop=True
+                            )
+                        )
+                    ],
+                    axis=1,
+                )
+                plus_minus_prediction = model.predict(
+                    pd.concat([team_A_feature_df, team_B_feature_df])
                 )
 
-                team_features = make_data_relative(
-                    pd.concat([team_A_predicted_features, team_B_predicted_features])
-                ).reset_index(drop=True)
-                plus_minus_result = relative_master_model.predict(team_features)
-                if plus_minus_result[0] > plus_minus_result[1]:
+                if plus_minus_prediction[0] > plus_minus_prediction[1]:
                     team_list.append(teamA)
                     print("Team A wins")
                 else:
@@ -117,4 +125,4 @@ def run_tournament(performances, rounds=1, team_count=32, team_size=13):
     return winner_list
 
 
-winners = run_tournament(average_performances, rounds=1, team_size=13)
+winners = run_tournament(average_performances, rounds=10, team_size=13)
