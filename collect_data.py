@@ -45,7 +45,7 @@ print("Loading Games...")
 nba_games = leaguegamefinder.LeagueGameFinder(
     league_id_nullable="00"
 ).get_data_frames()[0]
-game_ids = nba_games.GAME_ID.to_list()
+game_ids = set(nba_games.GAME_ID.to_list())
 
 print("Loading Database...")
 existing_player_performances = list(
