@@ -25,8 +25,10 @@ labels = features.pop(target)
 
 relative_features = features.copy()
 relative_features["GAME_ID"] = dataset.GAME_ID
-relative_features = relative_features.groupby("GAME_ID").apply(
-    lambda x: make_data_relative(x)
+relative_features = (
+    relative_features.groupby("GAME_ID")
+    .apply(lambda x: make_data_relative(x))
+    .drop("PTS", axis=1)
 )
 relative_features = relative_features.drop(['MIN','PACE_PER40','PACE','E_PACE','PTS'],axis=1)
 train_features, test_features, train_labels, test_labels = train_test_split(
