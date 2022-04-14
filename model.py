@@ -1,7 +1,9 @@
 import pymongo
 
+from constants import MONGO_NAME, MONGO_PW, MONGO_DB
+
 client = pymongo.MongoClient(
-    "mongodb+srv://superteam:4NgVPcNjmKBQkMTd@cluster0.sfhws.mongodb.net/dev?retryWrites=true&w=majority"
+    f"mongodb+srv://{MONGO_NAME}:{MONGO_PW}@cluster0.sfhws.mongodb.net/{MONGO_DB}?retryWrites=true&w=majority"
 )
 db = client.superteam
 import pandas as pd
