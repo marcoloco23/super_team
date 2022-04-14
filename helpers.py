@@ -169,5 +169,4 @@ def get_average_player_performances(performances):
     average_performances = (
         average_performances.dropna().reset_index().drop("TEAM_ID", axis=1)
     )
-    average_performances = average_performances[average_performances.MIN > 0]
     return average_performances
