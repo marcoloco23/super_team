@@ -104,7 +104,7 @@ model = model.fit(
     verbose=True,
     early_stopping_rounds=50,
 )
-model.save_model(f"models/{player_count}_player_model_new.json")
+model.save_model(f"models/{player_count}_player_model.json")
 
 predictions = model.predict(test_features)
 wler = win_loss_error_rate(predictions, test_labels)

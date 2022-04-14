@@ -10,7 +10,6 @@ from nba_api.stats.endpoints import (
     boxscoreusagev2,
 )
 from nba_api.stats.static import teams
-import numpy as np
 import pandas as pd
 from models import (
     AbsoluteStatistics,
@@ -70,7 +69,6 @@ else:
 for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
     game_date = list(set(nba_games[nba_games.GAME_ID == game_id].GAME_DATE))[0]
     if counter == upload_count:
-        # Upload Data
         print("Uploading Data...")
         db.playerPerformances.insert_many(new_player_performances)
         db.teamPerformances.insert_many(new_team_performances)
