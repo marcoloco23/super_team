@@ -38,7 +38,7 @@ client = pymongo.MongoClient(
 )
 db = client.superteam
 
-upload_count = 10
+upload_count = 100
 
 
 nba_teams = teams.get_teams()

@@ -162,40 +162,12 @@ def make_data_relative(x):
     return x
 
 
-def get_average_minute_weighted_player_performances(performances):
-    weighted_performances = performances.copy()
-    player_ids = weighted_performances.PLAYER_ID
-    player_names = weighted_performances.PLAYER_NAME
-    mins = weighted_performances.MIN
-    weighted_performances = weighted_performances.drop(
-        [
-            "GAME_ID",
-            "TEAM_ID",
-            "TEAM_ABBREVIATION",
-            "TEAM_CITY",
-            "PLAYER_NAME",
-            "NICKNAME",
-            "START_POSITION",
-            "PLAYER_ID",
-            "MIN",
-        ],
-        axis=1,
-    ).mul(mins, axis=0)
-    weighted_performances["PLAYER_ID"] = player_ids
-    weighted_performances["PLAYER_NAME"] = player_names
-    weighted_performances["MIN"] = mins
-    group = weighted_performances.groupby(["PLAYER_ID", "PLAYER_NAME"], axis=0)
-    mean_df = group.mean()
-    mean_minutes = mean_df["MIN"]
-    minute_scaled_df = mean_df.div(mean_df.MIN, axis=0).drop("MIN", axis=1)
-    minute_scaled_df["MIN"] = mean_minutes
-    minute_scaled_df = minute_scaled_df.dropna().reset_index()
-    return minute_scaled_df
-
-
 def get_average_player_performances(performances):
-    weighted_performances = performances.copy()
-    group = weighted_performances.groupby(["PLAYER_ID", "PLAYER_NAME"], axis=0)
-    mean_df = group.mean()
-    mean_df = mean_df.dropna().reset_index().drop("TEAM_ID", axis=1)
-    return mean_df
+    average_performances = performances.groupby(
+        ["PLAYER_ID", "PLAYER_NAME"], axis=0
+    ).mean()
+    average_performances = (
+        average_performances.dropna().reset_index().drop("TEAM_ID", axis=1)
+    )
+    average_performances = average_performances[average_performances.MIN > 0]
+    return average_performances
