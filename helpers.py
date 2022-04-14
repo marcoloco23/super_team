@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-
-from constants import TEAM_FEATURES
+from functools import reduce
 
 
 def combine_team_games(df, keep_method="home"):
@@ -47,8 +46,39 @@ def combine_team_games(df, keep_method="home"):
     return result.reset_index(drop=True)
 
 
-def get_combined_box_score(*box_scores):
-    combined_box_score = pd.concat(box_scores, axis=1)
+def get_combined_team_box_score(*box_scores):
+    combined_box_score = reduce(
+        lambda left, right: pd.merge(
+            left, right, on=["TEAM_ID"], how="inner", suffixes=("", "_y"),
+        ),
+        box_scores,
+    )
+    combined_box_score.drop(
+        combined_box_score.filter(regex="_y$").columns.tolist(), axis=1, inplace=True
+    )
+    combined_box_score = combined_box_score.loc[
+        :, ~combined_box_score.columns.duplicated()
+    ]
+    combined_box_score.fillna(0, inplace=True)
+    combined_box_score["TEAM_ABBREVIATION"] = combined_box_score[
+        "TEAM_ABBREVIATION"
+    ].astype("category")
+    combined_box_score["MIN"] = combined_box_score["MIN"].apply(
+        lambda time: float(time.replace(":", "."))
+    )
+    return combined_box_score
+
+
+def get_combined_player_box_score(*box_scores):
+    combined_box_score = reduce(
+        lambda left, right: pd.merge(
+            left, right, on=["PLAYER_ID", "TEAM_ID"], how="inner", suffixes=("", "_y"),
+        ),
+        box_scores,
+    )
+    combined_box_score.drop(
+        combined_box_score.filter(regex="_y$").columns.tolist(), axis=1, inplace=True
+    )
     combined_box_score = combined_box_score.loc[
         :, ~combined_box_score.columns.duplicated()
     ]
@@ -70,10 +100,7 @@ def get_player_and_team_box_scores(box_scores):
 
 
 def flatten_performance_df(performance_df):
-    if len(performance_df.columns) == 10:
-        i = 6
-    if len(performance_df.columns) == 13:
-        i = 9
+    i = performance_df.columns.get_loc("PERCENTAGES")
     percentages = performance_df.PERCENTAGES.apply(pd.Series)
     absolutes_stats = performance_df.ABSOLUTE_STATISTICS.apply(pd.Series)
     ratings = performance_df.RATINGS.apply(pd.Series)
@@ -172,10 +199,3 @@ def get_average_player_performances(performances):
     mean_df = group.mean()
     mean_df = mean_df.dropna().reset_index().drop("TEAM_ID", axis=1)
     return mean_df
-
-
-def get_team_features(model, starting_5_features):
-    team_features = model.predict(starting_5_features)
-    team_features = pd.DataFrame(team_features, columns=TEAM_FEATURES)
-    team_features.pop("PLUS_MINUS")
-    return team_features

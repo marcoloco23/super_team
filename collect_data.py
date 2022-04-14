@@ -25,7 +25,8 @@ from tqdm import tqdm
 import pymongo
 from constants import MONGO_DB, MONGO_NAME, MONGO_PW
 from helpers import (
-    get_combined_box_score,
+    get_combined_player_box_score,
+    get_combined_team_box_score,
     get_player_and_team_box_scores,
 )
 
@@ -36,6 +37,8 @@ client = pymongo.MongoClient(
     f"mongodb+srv://{MONGO_NAME}:{MONGO_PW}@cluster0.sfhws.mongodb.net/{MONGO_DB}?retryWrites=true&w=majority"
 )
 db = client.superteam
+
+upload_count = 10
 
 
 nba_teams = teams.get_teams()
@@ -65,9 +68,8 @@ else:
     existing_game_ids = []
 
 for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
-    # time.sleep(2)
     game_date = list(set(nba_games[nba_games.GAME_ID == game_id].GAME_DATE))[0]
-    if counter == 100:
+    if counter == upload_count:
         # Upload Data
         print("Uploading Data...")
         db.playerPerformances.insert_many(new_player_performances)
@@ -138,7 +140,7 @@ for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
         continue
 
     try:
-        combined_box_score = get_combined_box_score(
+        combined_box_score = get_combined_player_box_score(
             basic_box_score,
             advanced_box_score,
             traditional_box_score,
@@ -147,7 +149,7 @@ for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
             scoring_box_score,
             usage_box_score,
         )
-        combined_team_box_score = get_combined_box_score(
+        combined_team_box_score = get_combined_team_box_score(
             basic_team_box_score,
             advanced_team_box_score,
             traditional_team_box_score,
