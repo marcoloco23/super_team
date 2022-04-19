@@ -246,6 +246,61 @@ def nba_test_team(team_player_ids, average_performances, model, team_size=13):
     return np.mean(win_loss_list)
 
 
+def trade_finder(
+    team_abbreviation,
+    trade_value_df,
+    average_performances,
+    samples=10,
+    iterations=100,
+    team_size=13,
+):
+    score_list = []
+    trade_list = []
+    team = list(
+        average_performances[
+            average_performances.TEAM_ABBREVIATION == team_abbreviation
+        ]
+        .sort_values("MIN", ascending=False)
+        .reset_index()
+        .PLAYER_ID[:team_size]
+    )
+    base_score = test_team(team, iterations=iterations, team_size=team_size)
+    for _ in tqdm(range(samples)):
+        new_team = team[:]
+        traded_player = random.choice(team)
+        new_team.remove(traded_player)
+        trade_value = trade_value_df[
+            trade_value_df.PLAYER_ID == traded_player
+        ].SCORE.values[0]
+        player_pool = average_performances[
+            ~average_performances["PLAYER_ID"].isin(team)
+        ]
+        similar_valued_players = list(
+            trade_value_df[
+                trade_value_df.SCORE.between(trade_value - 0.1, trade_value + 0.1)
+            ].PLAYER_ID
+        )
+        player_pool = player_pool[player_pool.PLAYER_ID.isin(similar_valued_players)]
+        new_player = player_pool.sample(1).PLAYER_ID.to_list()[0]
+        new_team.append(new_player)
+
+        score = test_team(new_team, iterations=iterations, team_size=team_size)
+        if score > base_score:
+            score_list.append(score)
+            trade_list.append((traded_player, new_player))
+
+    if score_list:
+        best_trade = trade_list[np.argmax(score_list)]
+        traded_player_name = players.find_player_by_id(best_trade[0]).get("full_name")
+        acquired_player_name = players.find_player_by_id(best_trade[1]).get("full_name")
+
+        print(
+            f"Trade {traded_player_name} for {acquired_player_name} to improve from {round(base_score,2)} to {round(max(score_list),2)} W/L"
+        )
+    else:
+        print("No improvements found")
+
+
 def nba_trade_finder(
     team_abbreviation,
     trade_value_df,

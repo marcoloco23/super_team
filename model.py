@@ -1,5 +1,4 @@
 import pymongo
-
 from constants import MONGO_NAME, MONGO_PW, MONGO_DB
 
 client = pymongo.MongoClient(
@@ -84,10 +83,10 @@ train_features, validation_features, train_labels, validation_labels = train_tes
     train_features, train_labels, test_size=0.25, random_state=1
 )
 print("Training Model...")
-n = 5000
+n = 100
 model = xgb.XGBRegressor(
     booster="gbtree",
-    learning_rate=0.01,
+    learning_rate=0.1,
     n_estimators=n,
     max_depth=4,
     min_child_weight=4,

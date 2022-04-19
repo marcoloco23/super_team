@@ -60,7 +60,6 @@ new_player_performances, new_team_performances = [], []
 
 counter = 0
 
-# change
 if not pd.DataFrame(existing_team_performances).empty:
     existing_game_ids = list(set(pd.DataFrame(existing_team_performances).GAME_ID))
 else:
@@ -82,7 +81,6 @@ for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
             db.teamPerformances.find({}, projection=["GAME_ID", "TEAM_ID"])
         )
 
-        # change
         existing_game_ids = list(set(pd.DataFrame(existing_team_performances).GAME_ID))
 
         new_player_performances, new_team_performances = [], []
