@@ -170,7 +170,7 @@ def get_average_player_performances(performances):
     average_performances = (
         average_performances.dropna().reset_index().drop("TEAM_ID", axis=1)
     )
-    return average_performances.drop_duplicates("PLAYER_NAME")
+    return average_performances
 
 
 def get_score_df(average_performances):

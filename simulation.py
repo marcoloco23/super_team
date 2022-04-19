@@ -1,4 +1,3 @@
-from dataclasses import replace
 import random
 import numpy as np
 import pandas as pd
@@ -10,7 +9,7 @@ from nba_api.stats.static import players
 def simulate_nba_matchup(
     team_abbreviation_A, team_abbreviation_B, average_performances, model, team_size=13
 ):
-    i = average_performances.columns.get_loc("PCT_FGA_2PT")
+    start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
     player_ids = list(
         average_performances[
             average_performances.TEAM_ABBREVIATION == team_abbreviation_A
@@ -25,7 +24,7 @@ def simulate_nba_matchup(
         average_performances.PLAYER_ID.isin(player_ids)
     ]
     team_A_features = (
-        team_A_features.iloc[:team_size, i:]
+        team_A_features.iloc[:team_size, start_col:]
         .sort_values("MIN", ascending=False)
         .reset_index(drop=True)
     )
@@ -44,7 +43,37 @@ def simulate_nba_matchup(
         average_performances.PLAYER_ID.isin(player_ids)
     ]
     team_B_features = (
-        team_B_features.iloc[:team_size, i:]
+        team_B_features.iloc[:team_size, start_col:]
+        .sort_values("MIN", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    team_A_feature_df = get_team_feature_df(team_A_features, team_B_features)
+    team_B_feature_df = get_team_feature_df(team_B_features, team_A_features)
+    plus_minus_prediction = model.predict(
+        pd.concat([team_A_feature_df, team_B_feature_df])
+    )
+    return plus_minus_prediction
+
+
+def simulate_arbitrary_matchup(
+    team_a_player_ids, team_b_player_ids, average_performances, model, team_size=13
+):
+    start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
+    team_A_features = average_performances[
+        average_performances.PLAYER_ID.isin(team_a_player_ids)
+    ]
+    team_A_features = (
+        team_A_features.iloc[:team_size, start_col:]
+        .sort_values("MIN", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    team_B_features = average_performances[
+        average_performances.PLAYER_ID.isin(team_b_player_ids)
+    ]
+    team_B_features = (
+        team_B_features.iloc[:team_size, start_col:]
         .sort_values("MIN", ascending=False)
         .reset_index(drop=True)
     )
@@ -72,44 +101,13 @@ def simulate_regular_season(average_performances, model, team_size=13):
                 win_loss_list.append(0)
 
         results_dict[team_A] = np.mean(win_loss_list)
-
     return dict(sorted(results_dict.items(), key=lambda item: item[1], reverse=True))
 
 
-def simulate_arbitrary_matchup(
-    team_a_player_ids, team_b_player_ids, average_performances, model, team_size=13
-):
-    start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
-    team_A_features = average_performances[
-        average_performances.PLAYER_ID.isin(team_a_player_ids)
-    ].drop_duplicates("PLAYER_NAME")
-    team_A_features = (
-        team_A_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
-        .reset_index(drop=True)
-    )
-
-    team_B_features = average_performances[
-        average_performances.PLAYER_ID.isin(team_b_player_ids)
-    ].drop_duplicates("PLAYER_NAME")
-    team_B_features = (
-        team_B_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
-        .reset_index(drop=True)
-    )
-
-    team_A_feature_df = get_team_feature_df(team_A_features, team_B_features)
-    team_B_feature_df = get_team_feature_df(team_B_features, team_A_features)
-    plus_minus_prediction = model.predict(
-        pd.concat([team_A_feature_df, team_B_feature_df])
-    )
-    return plus_minus_prediction
-
-
 def run_tournament(average_performances, model, rounds=1, team_count=16, team_size=13):
+    """Team Count must be a power of 2"""
     winner = False
     winner_list = []
-
     for _ in tqdm(range(rounds)):
         player_pool = average_performances[["PLAYER_ID", "PLAYER_NAME"]]
         team_list = []
@@ -156,7 +154,6 @@ def run_tournament(average_performances, model, rounds=1, team_count=16, team_si
             winner_list.append(
                 winner_team.sort_values("MIN", ascending=False).PLAYER_ID.to_list()
             )
-
     return winner_list
 
 
@@ -186,7 +183,6 @@ def test_team(
         else:
             win_loss_list.append(0)
             better_teams.append(team_B_player_ids)
-
     return np.mean(win_loss_list)
 
 
@@ -220,25 +216,14 @@ def get_super_team(
             else:
                 win_loss_list.append(0)
                 better_teams.append(team_B_player_ids)
-
         print("W/L: ", np.mean(win_loss_list))
-
     return team_A_player_ids
 
 
 def nba_test_team(team_player_ids, average_performances, model, team_size=13):
-    start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
-    teams = average_performances.TEAM_ABBREVIATION.unique()
-    team_A_features = average_performances[
-        average_performances["PLAYER_ID"].isin(team_player_ids)
-    ].drop_duplicates("PLAYER_NAME")
-    team_A_features = (
-        team_A_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
-        .reset_index(drop=True)
-    )
     win_loss_list = []
     better_teams = []
+    teams = average_performances.TEAM_ABBREVIATION.unique()
     for team in teams:
         team_B_player_ids = list(
             average_performances[average_performances.TEAM_ABBREVIATION == team]
@@ -246,25 +231,18 @@ def nba_test_team(team_player_ids, average_performances, model, team_size=13):
             .reset_index()
             .PLAYER_ID[:team_size]
         )
-        team_B_features = average_performances[
-            average_performances["PLAYER_ID"].isin(team_B_player_ids)
-        ]
-        team_B_features = (
-            team_B_features.iloc[:team_size, start_col:]
-            .sort_values("MIN", ascending=False)
-            .reset_index(drop=True)
-        )
-        team_A_feature_df = get_team_feature_df(team_A_features, team_B_features)
-        team_B_feature_df = get_team_feature_df(team_B_features, team_A_features)
-        plus_minus_prediction = model.predict(
-            pd.concat([team_A_feature_df, team_B_feature_df])
+        plus_minus_prediction = simulate_arbitrary_matchup(
+            team_player_ids,
+            team_B_player_ids,
+            average_performances,
+            model=model,
+            team_size=team_size,
         )
         if plus_minus_prediction[0] > plus_minus_prediction[1]:
             win_loss_list.append(1)
         else:
             win_loss_list.append(0)
             better_teams.append(team_B_player_ids)
-
     return np.mean(win_loss_list)
 
 
@@ -311,14 +289,12 @@ def nba_trade_finder(
         player_pool = player_pool[player_pool.PLAYER_ID.isin(similar_valued_players)]
         new_player = player_pool.sample(1).PLAYER_ID.to_list()[0]
         new_team.append(new_player)
-
         score = nba_test_team(
             new_team, average_performances, model=model, team_size=team_size
         )
         if score > base_score:
             score_list.append(score)
             trade_list.append((traded_player, new_player))
-
     if score_list:
         best_trade = trade_list[np.argmax(score_list)]
         traded_player_name = players.find_player_by_id(best_trade[0]).get("full_name")
@@ -401,7 +377,5 @@ def get_super_team_for_player(average_performances, player_name, model, team_siz
             else:
                 win_loss_list.append(0)
                 better_teams.append(team_B_player_ids)
-
         print("W/L: ", np.mean(win_loss_list))
-
     return team_A_player_ids
