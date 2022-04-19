@@ -165,32 +165,32 @@ def make_data_relative(x):
 
 def get_average_player_performances(performances):
     average_performances = performances.groupby(
-        ["PLAYER_ID", "PLAYER_NAME"], axis=0
+        ["PLAYER_ID", "PLAYER_NAME", "TEAM_ABBREVIATION"], axis=0
     ).mean()
     average_performances = (
         average_performances.dropna().reset_index().drop("TEAM_ID", axis=1)
     )
-    return average_performances
+    return average_performances.drop_duplicates("PLAYER_NAME")
 
 
 def get_score_df(average_performances):
     scaler = MinMaxScaler()
-    score_df = average_performances.iloc[:,:2].copy()
-    stats = average_performances.iloc[:,2:]
+    start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
+    score_df = average_performances.iloc[:, :start_col].copy()
+    stats = average_performances.iloc[:, start_col:]
     stats = pd.DataFrame(scaler.fit_transform(stats), columns=stats.columns)
-    score_df['SCORE'] = stats.T.sum()
-    score_df['SCORE'] = score_df['SCORE']/score_df['SCORE'].max()
-    return score_df.sort_values('SCORE', ascending=False).reset_index(drop=True)
+    score_df["SCORE"] = stats.T.sum()
+    score_df["SCORE"] = score_df["SCORE"] / score_df["SCORE"].max()
+    return score_df.sort_values("SCORE", ascending=False).reset_index(drop=True)
+
 
 def get_team_feature_df(team_A_features, team_B_features):
     team_feature_df = pd.concat(
-                [
-                    stack_df(
-                        pd.concat([team_A_features, team_B_features]).reset_index(
-                            drop=True
-                        )
-                    )
-                ],
-                axis=1,
+        [
+            stack_df(
+                pd.concat([team_A_features, team_B_features]).reset_index(drop=True)
             )
+        ],
+        axis=1,
+    )
     return team_feature_df
