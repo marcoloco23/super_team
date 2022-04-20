@@ -3,48 +3,57 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from helpers import get_team_feature_df
-from nba_api.stats.static import players
+from nba_api.stats.static import players, teams
+from nba_api.stats.endpoints import commonteamroster
+
+
+def get_team_player_ids(team_abbreviation):
+    team_id = teams.find_team_by_abbreviation(team_abbreviation).get("id")
+    team_players_df = commonteamroster.CommonTeamRoster(
+        team_id=team_id
+    ).get_data_frames()[0]
+    team_player_ids = team_players_df.PLAYER_ID.to_list()
+    return team_player_ids
 
 
 def simulate_nba_matchup(
-    team_abbreviation_A, team_abbreviation_B, average_performances, model, team_size=13
+    team_abbreviation_A,
+    team_abbreviation_B,
+    average_performances,
+    model,
+    team_A_injured_player_ids=None,
+    team_B_injured_player_ids=None,
+    team_size=13,
 ):
     start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
-    player_ids = list(
-        average_performances[
-            average_performances.TEAM_ABBREVIATION == team_abbreviation_A
+    team_A_player_ids = get_team_player_ids(team_abbreviation_A)
+    if team_A_injured_player_ids:
+        team_A_player_ids = [
+            player_id
+            for player_id in team_A_player_ids
+            if player_id not in team_A_injured_player_ids
         ]
-        .groupby(["PLAYER_ID", "PLAYER_NAME"])
-        .mean()
-        .sort_values("MIN", ascending=False)
-        .reset_index()
-        .PLAYER_ID[:team_size]
-    )
     team_A_features = average_performances[
-        average_performances.PLAYER_ID.isin(player_ids)
+        average_performances.PLAYER_ID.isin(team_A_player_ids)
     ]
     team_A_features = (
-        team_A_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
+        team_A_features.sort_values("MIN", ascending=False)
+        .iloc[:team_size, start_col:]
         .reset_index(drop=True)
     )
-
-    player_ids = list(
-        average_performances[
-            average_performances.TEAM_ABBREVIATION == team_abbreviation_B
+    team_B_player_ids = get_team_player_ids(team_abbreviation_B)
+    if team_B_injured_player_ids:
+        team_B_player_ids = [
+            player_id
+            for player_id in team_B_player_ids
+            if player_id not in team_B_injured_player_ids
         ]
-        .groupby(["PLAYER_ID", "PLAYER_NAME"])
-        .mean()
-        .sort_values("MIN", ascending=False)
-        .reset_index()
-        .PLAYER_ID[:team_size]
-    )
     team_B_features = average_performances[
-        average_performances.PLAYER_ID.isin(player_ids)
+        average_performances.PLAYER_ID.isin(team_B_player_ids)
     ]
     team_B_features = (
-        team_B_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
+        team_B_features.sort_values("MIN", ascending=False)
+        .iloc[:team_size, start_col:]
         .reset_index(drop=True)
     )
 
@@ -64,8 +73,8 @@ def simulate_arbitrary_matchup(
         average_performances.PLAYER_ID.isin(team_a_player_ids)
     ]
     team_A_features = (
-        team_A_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
+        team_A_features.sort_values("MIN", ascending=False)
+        .iloc[:team_size, start_col:]
         .reset_index(drop=True)
     )
 
@@ -73,8 +82,8 @@ def simulate_arbitrary_matchup(
         average_performances.PLAYER_ID.isin(team_b_player_ids)
     ]
     team_B_features = (
-        team_B_features.iloc[:team_size, start_col:]
-        .sort_values("MIN", ascending=False)
+        team_B_features.sort_values("MIN", ascending=False)
+        .iloc[:team_size, start_col:]
         .reset_index(drop=True)
     )
 
@@ -223,14 +232,9 @@ def get_super_team(
 def nba_test_team(team_player_ids, average_performances, model, team_size=13):
     win_loss_list = []
     better_teams = []
-    teams = average_performances.TEAM_ABBREVIATION.unique()
-    for team in teams:
-        team_B_player_ids = list(
-            average_performances[average_performances.TEAM_ABBREVIATION == team]
-            .sort_values("MIN", ascending=False)
-            .reset_index()
-            .PLAYER_ID[:team_size]
-        )
+    team_list = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
+    for team in team_list:
+        team_B_player_ids = get_team_player_ids(team)
         plus_minus_prediction = simulate_arbitrary_matchup(
             team_player_ids,
             team_B_player_ids,
@@ -312,13 +316,14 @@ def nba_trade_finder(
 ):
     score_list = []
     trade_list = []
-    team = list(
-        average_performances[
-            average_performances.TEAM_ABBREVIATION == team_abbreviation
-        ]
-        .sort_values("MIN", ascending=False)
-        .reset_index()
+    team_player_ids = get_team_player_ids(team_abbreviation)
+    team_features = average_performances[
+        average_performances.PLAYER_ID.isin(team_player_ids)
+    ]
+    team = (
+        team_features.sort_values("MIN", ascending=False)
         .PLAYER_ID[:team_size]
+        .to_list()
     )
     base_score = nba_test_team(
         team, average_performances, model=model, team_size=team_size

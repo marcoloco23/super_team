@@ -165,7 +165,7 @@ def make_data_relative(x):
 
 def get_average_player_performances(performances):
     average_performances = performances.groupby(
-        ["PLAYER_ID", "PLAYER_NAME", "TEAM_ABBREVIATION"], axis=0
+        ["PLAYER_ID", "PLAYER_NAME"], axis=0
     ).mean()
     average_performances = (
         average_performances.dropna().reset_index().drop("TEAM_ID", axis=1)
