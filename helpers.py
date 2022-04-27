@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 from functools import reduce
-from sklearn.preprocessing import MinMaxScaler
+from nba_api.stats.static import teams
+from tqdm import tqdm
+
+from simulation import get_team_player_ids
 
 
 def combine_team_games(df, keep_method="home"):
@@ -165,7 +168,7 @@ def make_data_relative(x):
 
 def get_average_player_performances(performances):
     average_performances = performances.groupby(
-        ["PLAYER_ID", "PLAYER_NAME", "TEAM_ABBREVIATION"], axis=0
+        ["PLAYER_ID", "PLAYER_NAME"], axis=0
     ).mean()
     average_performances = (
         average_performances.dropna().reset_index().drop("TEAM_ID", axis=1)
@@ -174,14 +177,18 @@ def get_average_player_performances(performances):
 
 
 def get_score_df(average_performances):
-    scaler = MinMaxScaler()
     start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
     score_df = average_performances.iloc[:, :start_col].copy()
     stats = average_performances.iloc[:, start_col:]
-    stats = pd.DataFrame(scaler.fit_transform(stats), columns=stats.columns)
-    score_df["SCORE"] = stats.T.sum()
+    stats = stats - stats.min()
+    stats = stats / stats.std()
+    score_df["SCORE"] = stats.mul(stats.corrwith(stats.PLUS_MINUS)).mean(axis=1) ** 2
     score_df["SCORE"] = score_df["SCORE"] / score_df["SCORE"].max()
-    return score_df.sort_values("SCORE", ascending=False).reset_index(drop=True)
+    score_df = score_df.sort_values("SCORE", axis=0, ascending=False).reset_index(
+        drop=True
+    )
+    return score_df
+    
 
 
 def get_team_feature_df(team_A_features, team_B_features):
@@ -194,3 +201,35 @@ def get_team_feature_df(team_A_features, team_B_features):
         axis=1,
     )
     return team_feature_df
+
+
+def get_salary_cap(average_performances, team_size):
+    score_df = get_score_df(average_performances)
+    salary_cap_df = (
+        score_df.groupby("TEAM_ABBREVIATION")
+        .apply(lambda x: x[:team_size])
+        .reset_index(drop=True)
+    )
+    salary_cap = salary_cap_df.groupby("TEAM_ABBREVIATION").sum().mean().SCORE
+    return salary_cap
+
+
+def insert_team_abbreviation(average_performances):
+    player_team_dict = get_player_team_dict()
+    average_performances["TEAM_ABBREVIATION"] = average_performances.PLAYER_ID.map(
+        player_team_dict
+    )
+    average_performances = average_performances.dropna()
+    first_column = average_performances.pop("TEAM_ABBREVIATION")
+    average_performances.insert(0, "TEAM_ABBREVIATION", first_column)
+    return average_performances
+
+
+def get_player_team_dict():
+    team_abbreviations = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
+    player_team_dict = {}
+    for team_abb in tqdm(team_abbreviations):
+        player_ids = get_team_player_ids(team_abb)
+        for player_id in player_ids:
+            player_team_dict[player_id] = team_abb
+    return player_team_dict
