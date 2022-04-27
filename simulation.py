@@ -2,7 +2,7 @@ import random
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from helpers import get_team_feature_df
+from helpers import get_salary_cap, get_score_df, get_team_feature_df
 from nba_api.stats.static import players, teams
 from nba_api.stats.endpoints import commonteamroster
 
@@ -26,7 +26,9 @@ def simulate_nba_matchup(
     team_size=13,
 ):
     start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
-    team_A_player_ids = get_team_player_ids(team_abbreviation_A)
+    team_A_player_ids = average_performances[
+        average_performances.TEAM_ABBREVIATION == team_abbreviation_A
+    ].PLAYER_ID.to_list()
     if team_A_injured_player_ids:
         team_A_player_ids = [
             player_id
@@ -41,7 +43,9 @@ def simulate_nba_matchup(
         .iloc[:team_size, start_col:]
         .reset_index(drop=True)
     )
-    team_B_player_ids = get_team_player_ids(team_abbreviation_B)
+    team_B_player_ids = average_performances[
+        average_performances.TEAM_ABBREVIATION == team_abbreviation_B
+    ].PLAYER_ID.to_list()
     if team_B_injured_player_ids:
         team_B_player_ids = [
             player_id
@@ -96,11 +100,11 @@ def simulate_arbitrary_matchup(
 
 
 def simulate_regular_season(average_performances, model, team_size=13):
-    teams = average_performances.TEAM_ABBREVIATION.unique()
+    team_abbreviations = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
     results_dict = {}
-    for i, team_A in tqdm(enumerate(teams), total=len(teams)):
+    for i, team_A in tqdm(enumerate(team_abbreviations), total=len(team_abbreviations)):
         win_loss_list = []
-        for team_B in [*teams[:i], *teams[i + 1 :]]:
+        for team_B in [*team_abbreviations[:i], *team_abbreviations[i + 1 :]]:
             plus_minus_prediction = simulate_nba_matchup(
                 team_A, team_B, average_performances, model=model, team_size=team_size
             )
@@ -196,36 +200,39 @@ def test_team(
 
 
 def get_super_team(
-    average_performances, model, team_size=13, iterations=10, test_teams=100
+    average_performances, model, team_size=13, iterations=100, salary_cap=True
 ):
     team_A_player_ids = average_performances.sample(team_size).PLAYER_ID.to_list()
-    for i in range(iterations):
-        if i > 0:
-            if better_teams:
-                team_A_player_ids = random.choice(better_teams)
-            else:
-                print("Super Team Found")
-                break
-
-        win_loss_list = []
-        better_teams = []
-        for _ in tqdm(range(test_teams)):
-            team_B_player_ids = average_performances.sample(
-                team_size
-            ).PLAYER_ID.to_list()
-            plus_minus_prediction = simulate_arbitrary_matchup(
-                team_A_player_ids,
-                team_B_player_ids,
-                average_performances=average_performances,
-                model=model,
-                team_size=team_size,
-            )
-            if plus_minus_prediction[0] > plus_minus_prediction[1]:
-                win_loss_list.append(1)
-            else:
-                win_loss_list.append(0)
-                better_teams.append(team_B_player_ids)
-        print("W/L: ", np.mean(win_loss_list))
+    score_df = get_score_df(average_performances)
+    value_score = get_salary_cap(average_performances, 8)
+    if not salary_cap:
+        value_score = 1000
+    better_team = None
+    for _ in tqdm(range(iterations)):
+        if better_team:
+            team_A_player_ids = better_team
+        team_B_player_ids = average_performances.sample(team_size).PLAYER_ID.to_list()
+        plus_minus_prediction = simulate_arbitrary_matchup(
+            team_A_player_ids,
+            team_B_player_ids,
+            average_performances=average_performances,
+            model=model,
+            team_size=team_size,
+        )
+        team_value_score = (
+            score_df[score_df.PLAYER_ID.isin(team_B_player_ids)].fillna(0.5).sum().SCORE
+        )
+        if plus_minus_prediction[0] > plus_minus_prediction[1]:
+            pass
+        else:
+            if team_value_score < value_score:
+                print(team_value_score)
+                print(
+                    average_performances[
+                        average_performances.PLAYER_ID.isin(team_B_player_ids)
+                    ].PLAYER_NAME.to_list()
+                )
+                better_team = team_B_player_ids
     return team_A_player_ids
 
 
@@ -234,7 +241,9 @@ def nba_test_team(team_player_ids, average_performances, model, team_size=13):
     better_teams = []
     team_list = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
     for team in team_list:
-        team_B_player_ids = get_team_player_ids(team)
+        team_B_player_ids = average_performances[
+            average_performances.TEAM_ABBREVIATION == team
+        ].PLAYER_ID.to_list()
         plus_minus_prediction = simulate_arbitrary_matchup(
             team_player_ids,
             team_B_player_ids,
@@ -307,16 +316,19 @@ def trade_finder(
 
 def nba_trade_finder(
     team_abbreviation,
-    trade_value_df,
     average_performances,
     model,
     trade_player_id=None,
+    trade_threshold=0.02,
     samples=10,
     team_size=13,
 ):
+    trade_value_df = get_score_df(average_performances)
     score_list = []
     trade_list = []
-    team_player_ids = get_team_player_ids(team_abbreviation)
+    team_player_ids = average_performances[
+        average_performances.TEAM_ABBREVIATION == team_abbreviation
+    ].PLAYER_ID.to_list()
     team_features = average_performances[
         average_performances.PLAYER_ID.isin(team_player_ids)
     ]
@@ -343,7 +355,9 @@ def nba_trade_finder(
         ]
         similar_valued_players = list(
             trade_value_df[
-                trade_value_df.SCORE.between(trade_value - 0.1, trade_value + 0.1)
+                trade_value_df.SCORE.between(
+                    trade_value - trade_threshold, trade_value + trade_threshold
+                )
             ].PLAYER_ID
         )
         player_pool = player_pool[player_pool.PLAYER_ID.isin(similar_valued_players)]
@@ -371,71 +385,54 @@ def build_team_around_player(
     player_name,
     average_performances,
     model,
-    iterations=10,
-    test_teams=100,
     team_size=13,
+    iterations=10,
+    salary_cap=True,
 ):
-    player = average_performances[
+    player_id = average_performances[
         average_performances.PLAYER_NAME == player_name
     ].PLAYER_ID
-    player_pool = average_performances[~average_performances["PLAYER_ID"].isin(player)]
-    max_score = 0
-    for _ in tqdm(range(iterations)):
-        team = (
+    player_pool = average_performances[~average_performances["PLAYER_ID"].isin(player_id)]
+    team_A_player_ids = (
             player_pool.sample(team_size - 1, replace=False)
             .PLAYER_ID.drop_duplicates()
             .to_list()
         )
-        team = team + player.to_list()
-        assert len(team) == team_size
-        score = test_team(
-            team,
-            average_performances,
+    team_A_player_ids = team_A_player_ids + player_id.to_list()
+    
+    score_df = get_score_df(average_performances)
+    value_score = get_salary_cap(average_performances, 8)
+    if not salary_cap:
+        value_score = 1000
+    better_team = None
+    for _ in tqdm(range(iterations)):
+        if better_team:
+            team_A_player_ids = better_team
+        team_B_player_ids = (
+            player_pool.sample(team_size - 1, replace=False)
+            .PLAYER_ID
+            .to_list()
+        )
+        team_B_player_ids = team_B_player_ids + player_id.to_list()
+        plus_minus_prediction = simulate_arbitrary_matchup(
+            team_A_player_ids,
+            team_B_player_ids,
+            average_performances=average_performances,
             model=model,
             team_size=team_size,
-            iterations=test_teams,
         )
-        if score > max_score:
-            max_score = score
-            best_team = team
-    player_names = (
-        average_performances[average_performances["PLAYER_ID"].isin(best_team)]
-        .sort_values("MIN", ascending=False)
-        .PLAYER_NAME.to_list()
-    )
-    return player_names, max_score
-
-
-def get_super_team_for_player(average_performances, player_name, model, team_size=13):
-    player = average_performances[
-        average_performances.PLAYER_NAME == player_name
-    ].PLAYER_ID
-    player_pool = average_performances[~average_performances["PLAYER_ID"].isin(player)]
-    team_A_player_ids = player_pool.sample(team_size - 1).PLAYER_ID.to_list()
-    team_A_player_ids = team_A_player_ids + player.to_list()
-    for i in range(10):
-        if i > 0:
-            if better_teams:
-                team_A_player_ids = random.choice(better_teams)
-            else:
-                print("Super Team Found")
-                break
-        win_loss_list = []
-        better_teams = []
-        for _ in tqdm(range(100)):
-            team_B_player_ids = player_pool.sample(team_size - 1).PLAYER_ID.to_list()
-            team_B_player_ids = team_B_player_ids + player.to_list()
-            plus_minus_prediction = simulate_arbitrary_matchup(
-                team_A_player_ids,
-                team_B_player_ids,
-                average_performances,
-                model=model,
-                team_size=team_size,
-            )
-            if plus_minus_prediction[0] > plus_minus_prediction[1]:
-                win_loss_list.append(1)
-            else:
-                win_loss_list.append(0)
-                better_teams.append(team_B_player_ids)
-        print("W/L: ", np.mean(win_loss_list))
-    return team_A_player_ids
+        team_value_score = (
+            score_df[score_df.PLAYER_ID.isin(team_B_player_ids)].fillna(0.5).sum().SCORE
+        )
+        if plus_minus_prediction[0] > plus_minus_prediction[1]:
+            pass
+        else:
+            if team_value_score < value_score:
+                print(team_value_score)
+                print(
+                    average_performances[
+                        average_performances.PLAYER_ID.isin(team_B_player_ids)
+                    ].PLAYER_NAME.to_list()
+                )
+                better_team = team_B_player_ids
+    return better_team
