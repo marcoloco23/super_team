@@ -3,8 +3,7 @@ import pandas as pd
 from functools import reduce
 from nba_api.stats.static import teams
 from tqdm import tqdm
-
-from simulation import get_team_player_ids
+from nba_api.stats.endpoints import commonteamroster
 
 
 def combine_team_games(df, keep_method="home"):
@@ -188,7 +187,6 @@ def get_score_df(average_performances):
         drop=True
     )
     return score_df
-    
 
 
 def get_team_feature_df(team_A_features, team_B_features):
@@ -233,3 +231,12 @@ def get_player_team_dict():
         for player_id in player_ids:
             player_team_dict[player_id] = team_abb
     return player_team_dict
+
+
+def get_team_player_ids(team_abbreviation):
+    team_id = teams.find_team_by_abbreviation(team_abbreviation).get("id")
+    team_players_df = commonteamroster.CommonTeamRoster(
+        team_id=team_id
+    ).get_data_frames()[0]
+    team_player_ids = team_players_df.PLAYER_ID.to_list()
+    return team_player_ids

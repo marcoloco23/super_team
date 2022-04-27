@@ -4,16 +4,6 @@ import pandas as pd
 from tqdm import tqdm
 from helpers import get_salary_cap, get_score_df, get_team_feature_df
 from nba_api.stats.static import players, teams
-from nba_api.stats.endpoints import commonteamroster
-
-
-def get_team_player_ids(team_abbreviation):
-    team_id = teams.find_team_by_abbreviation(team_abbreviation).get("id")
-    team_players_df = commonteamroster.CommonTeamRoster(
-        team_id=team_id
-    ).get_data_frames()[0]
-    team_player_ids = team_players_df.PLAYER_ID.to_list()
-    return team_player_ids
 
 
 def simulate_nba_matchup(
@@ -392,14 +382,16 @@ def build_team_around_player(
     player_id = average_performances[
         average_performances.PLAYER_NAME == player_name
     ].PLAYER_ID
-    player_pool = average_performances[~average_performances["PLAYER_ID"].isin(player_id)]
+    player_pool = average_performances[
+        ~average_performances["PLAYER_ID"].isin(player_id)
+    ]
     team_A_player_ids = (
-            player_pool.sample(team_size - 1, replace=False)
-            .PLAYER_ID.drop_duplicates()
-            .to_list()
-        )
+        player_pool.sample(team_size - 1, replace=False)
+        .PLAYER_ID.drop_duplicates()
+        .to_list()
+    )
     team_A_player_ids = team_A_player_ids + player_id.to_list()
-    
+
     score_df = get_score_df(average_performances)
     value_score = get_salary_cap(average_performances, 8)
     if not salary_cap:
@@ -408,11 +400,9 @@ def build_team_around_player(
     for _ in tqdm(range(iterations)):
         if better_team:
             team_A_player_ids = better_team
-        team_B_player_ids = (
-            player_pool.sample(team_size - 1, replace=False)
-            .PLAYER_ID
-            .to_list()
-        )
+        team_B_player_ids = player_pool.sample(
+            team_size - 1, replace=False
+        ).PLAYER_ID.to_list()
         team_B_player_ids = team_B_player_ids + player_id.to_list()
         plus_minus_prediction = simulate_arbitrary_matchup(
             team_A_player_ids,
