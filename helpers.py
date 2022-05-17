@@ -7,23 +7,6 @@ from nba_api.stats.endpoints import commonteamroster
 
 
 def combine_team_games(df, keep_method="home"):
-    """Combine a TEAM_ID-GAME_ID unique table into rows by game. Slow.
-
-        Parameters
-        ----------
-        df : Input DataFrame.
-        keep_method : {'home', 'away', 'winner', 'loser', ``None``}, default 'home'
-            - 'home' : Keep rows where TEAM_A is the home team.
-            - 'away' : Keep rows where TEAM_A is the away team.
-            - 'winner' : Keep rows where TEAM_A is the losing team.
-            - 'loser' : Keep rows where TEAM_A is the winning team.
-            - ``None`` : Keep all rows. Will result in an output DataFrame the same
-                length as the input DataFrame.
-                
-        Returns
-        -------
-        result : DataFrame
-    """
     # Join every row to all others with the same game ID.
     joined = pd.merge(
         df, df, suffixes=["_A", "_B"], on=["SEASON_ID", "GAME_ID", "GAME_DATE"]

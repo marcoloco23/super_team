@@ -216,12 +216,6 @@ def get_super_team(
             pass
         else:
             if team_value_score < value_score:
-                print(team_value_score)
-                print(
-                    average_performances[
-                        average_performances.PLAYER_ID.isin(team_B_player_ids)
-                    ].PLAYER_NAME.to_list()
-                )
                 better_team = team_B_player_ids
     return team_A_player_ids
 
@@ -309,7 +303,7 @@ def nba_trade_finder(
     average_performances,
     model,
     trade_player_id=None,
-    trade_threshold=0.02,
+    trade_threshold=0.05,
     samples=10,
     team_size=13,
 ):
@@ -356,19 +350,14 @@ def nba_trade_finder(
         score = nba_test_team(
             new_team, average_performances, model=model, team_size=team_size
         )
-        if score > base_score:
-            score_list.append(score)
-            trade_list.append((traded_player, new_player))
-    if score_list:
-        best_trade = trade_list[np.argmax(score_list)]
-        traded_player_name = players.find_player_by_id(best_trade[0]).get("full_name")
-        acquired_player_name = players.find_player_by_id(best_trade[1]).get("full_name")
+        score_list.append(score)
+        trade_list.append((traded_player, new_player))
 
-        print(
-            f"Trade {traded_player_name} for {acquired_player_name} to improve from {round(base_score,3)} to {round(max(score_list),3)} W/L"
-        )
-    else:
-        print("No improvements found")
+    best_trade = trade_list[np.argmax(score_list)]
+    traded_player_name = players.find_player_by_id(best_trade[0]).get("full_name")
+    acquired_player_name = players.find_player_by_id(best_trade[1]).get("full_name")
+
+    return traded_player_name, acquired_player_name, base_score, max(score_list)
 
 
 def build_team_around_player(
@@ -393,7 +382,7 @@ def build_team_around_player(
     team_A_player_ids = team_A_player_ids + player_id.to_list()
 
     score_df = get_score_df(average_performances)
-    value_score = get_salary_cap(average_performances, 8)
+    value_score = get_salary_cap(average_performances, team_size)
     if not salary_cap:
         value_score = 1000
     better_team = None
@@ -418,11 +407,5 @@ def build_team_around_player(
             pass
         else:
             if team_value_score < value_score:
-                print(team_value_score)
-                print(
-                    average_performances[
-                        average_performances.PLAYER_ID.isin(team_B_player_ids)
-                    ].PLAYER_NAME.to_list()
-                )
                 better_team = team_B_player_ids
     return better_team
