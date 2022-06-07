@@ -98,10 +98,10 @@ def flatten_performance_df(performance_df):
     return performance_df
 
 
-def get_performances_by_team(performance_df):
-    if len(performance_df.columns) == 93:
+def get_performances_by_team(performance_df, type):
+    if type == "team":
         i = 6
-    if len(performance_df.columns) == 114:
+    if type == "player":
         i = 9
     team_list = performance_df["TEAM_ABBREVIATION"].astype("category").cat.categories
     team_1_performances = performance_df[
