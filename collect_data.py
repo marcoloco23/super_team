@@ -207,4 +207,3 @@ for i, game_id in tqdm(enumerate(list(game_ids)), total=len(list(game_ids))):
             new_team_performances.append(performance.dict())
 
     counter += 1
-
