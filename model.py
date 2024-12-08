@@ -112,4 +112,3 @@ wler = win_loss_error_rate(predictions, test_labels)
 r2 = r2_score(test_labels, predictions)
 print("Win Loss Accuracy: %f\n" % (1 - wler))
 print("R^2: %f\n" % (r2))
-

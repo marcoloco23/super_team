@@ -92,7 +92,7 @@ def run_tournament(average_performances, model, rounds=1, team_count=16, team_si
         for _ in range(int(np.log2(team_count))):
             it = iter(team_list)
             team_list = []
-            for (teamA, teamB) in zip(it, it):
+            for teamA, teamB in zip(it, it):
                 team_A_ids = teamA.PLAYER_ID.to_list()
                 team_B_ids = teamB.PLAYER_ID.to_list()
                 plus_minus_prediction = simulate_arbitrary_matchup(

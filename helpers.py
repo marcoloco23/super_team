@@ -35,7 +35,11 @@ def combine_team_games(df, keep_method="home"):
 def get_combined_team_box_score(*box_scores):
     combined_box_score = reduce(
         lambda left, right: pd.merge(
-            left, right, on=["TEAM_ID"], how="inner", suffixes=("", "_y"),
+            left,
+            right,
+            on=["TEAM_ID"],
+            how="inner",
+            suffixes=("", "_y"),
         ),
         box_scores,
     )
@@ -58,7 +62,11 @@ def get_combined_team_box_score(*box_scores):
 def get_combined_player_box_score(*box_scores):
     combined_box_score = reduce(
         lambda left, right: pd.merge(
-            left, right, on=["PLAYER_ID", "TEAM_ID"], how="inner", suffixes=("", "_y"),
+            left,
+            right,
+            on=["PLAYER_ID", "TEAM_ID"],
+            how="inner",
+            suffixes=("", "_y"),
         ),
         box_scores,
     )
