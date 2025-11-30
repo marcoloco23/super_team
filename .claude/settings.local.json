@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "Task",
+      "WebSearch",
+      "Glob",
+      "Grep",
+      "mcp__*",
+      "mcp__ide__getDiagnostics"
+    ],
+    "deny": []
+  }
+}

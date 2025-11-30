@@ -1,20 +1,51 @@
+"""
+Simulation and optimization module for NBA team matchups.
+
+This module provides functions for simulating games between NBA teams,
+running tournaments, finding optimal team compositions, and suggesting trades.
+"""
+
+from typing import List, Optional, Tuple, Dict
 import random
+
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from helpers import get_salary_cap, get_score_df, get_team_feature_df
+
+from .helpers import get_salary_cap, get_score_df, get_team_feature_df
 from nba_api.stats.static import players, teams
 
 
+def _filter_features_for_model(feature_df: pd.DataFrame, model) -> pd.DataFrame:
+    """Filter feature DataFrame to match model's expected columns."""
+    expected_features = model.get_booster().feature_names
+    return feature_df.reindex(columns=expected_features, fill_value=0)
+
+
 def simulate_nba_matchup(
-    team_abbreviation_A,
-    team_abbreviation_B,
-    average_performances,
+    team_abbreviation_A: str,
+    team_abbreviation_B: str,
+    average_performances: pd.DataFrame,
     model,
-    team_A_injured_player_ids=None,
-    team_B_injured_player_ids=None,
-    team_size=13,
-):
+    team_A_injured_player_ids: Optional[List[int]] = None,
+    team_B_injured_player_ids: Optional[List[int]] = None,
+    team_size: int = 13,
+) -> np.ndarray:
+    """
+    Simulate a matchup between two NBA teams.
+
+    Args:
+        team_abbreviation_A: Abbreviation for team A (e.g., 'LAL')
+        team_abbreviation_B: Abbreviation for team B (e.g., 'BOS')
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        team_A_injured_player_ids: List of injured player IDs for team A
+        team_B_injured_player_ids: List of injured player IDs for team B
+        team_size: Number of players per team
+
+    Returns:
+        Array of [team_A_plus_minus, team_B_plus_minus] predictions
+    """
     start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
     team_A_player_ids = average_performances[
         average_performances.TEAM_ABBREVIATION == team_abbreviation_A
@@ -53,6 +84,11 @@ def simulate_nba_matchup(
 
     team_A_feature_df = get_team_feature_df(team_A_features, team_B_features)
     team_B_feature_df = get_team_feature_df(team_B_features, team_A_features)
+
+    # Filter to model's expected columns
+    team_A_feature_df = _filter_features_for_model(team_A_feature_df, model)
+    team_B_feature_df = _filter_features_for_model(team_B_feature_df, model)
+
     plus_minus_prediction = model.predict(
         pd.concat([team_A_feature_df, team_B_feature_df])
     )
@@ -60,8 +96,25 @@ def simulate_nba_matchup(
 
 
 def simulate_arbitrary_matchup(
-    team_a_player_ids, team_b_player_ids, average_performances, model, team_size=13
-):
+    team_a_player_ids: List[int],
+    team_b_player_ids: List[int],
+    average_performances: pd.DataFrame,
+    model,
+    team_size: int = 13,
+) -> np.ndarray:
+    """
+    Simulate a matchup between two custom teams.
+
+    Args:
+        team_a_player_ids: List of player IDs for team A
+        team_b_player_ids: List of player IDs for team B
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        team_size: Number of players per team
+
+    Returns:
+        Array of [team_A_plus_minus, team_B_plus_minus] predictions
+    """
     start_col = average_performances.columns.get_loc("PCT_FGA_2PT")
     team_A_features = average_performances[
         average_performances.PLAYER_ID.isin(team_a_player_ids)
@@ -83,14 +136,35 @@ def simulate_arbitrary_matchup(
 
     team_A_feature_df = get_team_feature_df(team_A_features, team_B_features)
     team_B_feature_df = get_team_feature_df(team_B_features, team_A_features)
+
+    # Filter to model's expected columns
+    team_A_feature_df = _filter_features_for_model(team_A_feature_df, model)
+    team_B_feature_df = _filter_features_for_model(team_B_feature_df, model)
+
     plus_minus_prediction = model.predict(
         pd.concat([team_A_feature_df, team_B_feature_df])
     )
     return plus_minus_prediction
 
 
-def simulate_regular_season(average_performances, model, team_size=13):
-    team_abbreviations = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
+def simulate_regular_season(average_performances, model, teams_df=None, team_size=13):
+    """
+    Simulate a regular season between all NBA teams.
+
+    Args:
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        teams_df: Optional DataFrame of teams (if None, fetches from NBA API)
+        team_size: Number of players per team
+
+    Returns:
+        Dictionary mapping team abbreviations to win ratios, sorted descending
+    """
+    if teams_df is not None:
+        team_abbreviations = teams_df.abbreviation.to_list()
+    else:
+        team_abbreviations = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
+
     results_dict = {}
     for i, team_A in tqdm(enumerate(team_abbreviations), total=len(team_abbreviations)):
         win_loss_list = []
@@ -108,16 +182,30 @@ def simulate_regular_season(average_performances, model, team_size=13):
 
 
 def run_tournament(average_performances, model, rounds=1, team_count=16, team_size=13):
-    """Team Count must be a power of 2"""
+    """
+    Run a tournament bracket simulation with random teams.
+
+    Args:
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        rounds: Number of tournament rounds to run
+        team_count: Number of teams in the tournament (must be a power of 2)
+        team_size: Number of players per team
+
+    Returns:
+        Tuple of (winner_name_list, winner_id_list) containing player names and IDs
+    """
     winner = False
-    winner_list = []
+    winner_name_list = []
+    winner_id_list = []
+
     for _ in tqdm(range(rounds)):
         player_pool = average_performances[["PLAYER_ID", "PLAYER_NAME"]]
         team_list = []
         team_number = team_count
 
         if winner:
-            player_pool.drop(winner_team.index)
+            player_pool = player_pool.drop(winner_team.index)
             team_list.append(winner_team)
             team_number = team_number - 1
 
@@ -149,20 +237,37 @@ def run_tournament(average_performances, model, rounds=1, team_count=16, team_si
 
         if len(team_list) == 1:
             winner_team = team_list[0]
-            print(
-                "Winner Team: ",
-                winner_team.sort_values("MIN", ascending=False).PLAYER_NAME.to_list(),
-            )
             winner = True
-            winner_list.append(
+            winner_name_list.append(
+                winner_team.sort_values("MIN", ascending=False).PLAYER_NAME.to_list()
+            )
+            winner_id_list.append(
                 winner_team.sort_values("MIN", ascending=False).PLAYER_ID.to_list()
             )
-    return winner_list
+
+    return winner_name_list, winner_id_list
 
 
-def test_team(
-    team_player_ids, average_performances, model, team_size=13, iterations=100
-):
+def evaluate_team(
+    team_player_ids: List[int],
+    average_performances: pd.DataFrame,
+    model,
+    team_size: int = 13,
+    iterations: int = 100,
+) -> float:
+    """
+    Evaluate a team's strength by simulating games against random opponents.
+
+    Args:
+        team_player_ids: List of player IDs for the team to test
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        team_size: Number of players per team
+        iterations: Number of games to simulate
+
+    Returns:
+        Win rate as a float between 0 and 1
+    """
     win_loss_list = []
     better_teams = []
     for _ in tqdm(range(iterations)):
@@ -192,35 +297,66 @@ def test_team(
 def get_super_team(
     average_performances, model, team_size=13, iterations=100, salary_cap=True
 ):
-    team_A_player_ids = average_performances.sample(team_size).PLAYER_ID.to_list()
+    """
+    Find the best team composition through iterative random sampling.
+
+    Uses a genetic algorithm-style approach where random teams that beat the
+    current best team (and meet salary cap constraints) become the new best.
+
+    Args:
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        team_size: Number of players per team
+        iterations: Number of random teams to test
+        salary_cap: Whether to enforce salary cap constraints
+
+    Returns:
+        List of player IDs for the best team found
+    """
+    best_team = average_performances.sample(team_size).PLAYER_ID.to_list()
     score_df = get_score_df(average_performances)
     value_score = get_salary_cap(average_performances, 8)
     if not salary_cap:
         value_score = 1000
-    better_team = None
+
     for _ in tqdm(range(iterations)):
-        if better_team:
-            team_A_player_ids = better_team
-        team_B_player_ids = average_performances.sample(team_size).PLAYER_ID.to_list()
+        challenger_team = average_performances.sample(team_size).PLAYER_ID.to_list()
         plus_minus_prediction = simulate_arbitrary_matchup(
-            team_A_player_ids,
-            team_B_player_ids,
+            best_team,
+            challenger_team,
             average_performances=average_performances,
             model=model,
             team_size=team_size,
         )
         team_value_score = (
-            score_df[score_df.PLAYER_ID.isin(team_B_player_ids)].fillna(0.5).sum().SCORE
+            score_df[score_df.PLAYER_ID.isin(challenger_team)].fillna(0.5).sum().SCORE
         )
-        if plus_minus_prediction[0] > plus_minus_prediction[1]:
-            pass
-        else:
+        # If challenger beats current best and is within salary cap, update best team
+        if plus_minus_prediction[1] > plus_minus_prediction[0]:
             if team_value_score < value_score:
-                better_team = team_B_player_ids
-    return team_A_player_ids
+                best_team = challenger_team
+
+    return best_team
 
 
-def nba_test_team(team_player_ids, average_performances, model, team_size=13):
+def nba_test_team(
+    team_player_ids: List[int],
+    average_performances: pd.DataFrame,
+    model,
+    team_size: int = 13,
+) -> float:
+    """
+    Test a team against all current NBA teams.
+
+    Args:
+        team_player_ids: List of player IDs for the team to test
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        team_size: Number of players per team
+
+    Returns:
+        Win rate against NBA teams as a float between 0 and 1
+    """
     win_loss_list = []
     better_teams = []
     team_list = pd.DataFrame(teams.get_teams()).abbreviation.to_list()
@@ -244,13 +380,27 @@ def nba_test_team(team_player_ids, average_performances, model, team_size=13):
 
 
 def trade_finder(
-    team_abbreviation,
-    trade_value_df,
-    average_performances,
-    samples=10,
-    iterations=100,
-    team_size=13,
-):
+    team_abbreviation: str,
+    trade_value_df: pd.DataFrame,
+    average_performances: pd.DataFrame,
+    samples: int = 10,
+    iterations: int = 100,
+    team_size: int = 13,
+) -> None:
+    """
+    Find potential trades to improve a team (prints results).
+
+    Note: This is a legacy function that prints results. Use nba_trade_finder
+    for a function that returns values.
+
+    Args:
+        team_abbreviation: Team abbreviation (e.g., 'LAL')
+        trade_value_df: DataFrame with player trade values
+        average_performances: DataFrame with player performance data
+        samples: Number of trade scenarios to test
+        iterations: Number of games per scenario
+        team_size: Number of players per team
+    """
     score_list = []
     trade_list = []
     team = list(
@@ -299,14 +449,29 @@ def trade_finder(
 
 
 def nba_trade_finder(
-    team_abbreviation,
-    average_performances,
+    team_abbreviation: str,
+    average_performances: pd.DataFrame,
     model,
-    trade_player_id=None,
-    trade_threshold=0.05,
-    samples=10,
-    team_size=13,
-):
+    trade_player_id: Optional[int] = None,
+    trade_threshold: float = 0.05,
+    samples: int = 10,
+    team_size: int = 13,
+) -> Tuple[str, str, float, float]:
+    """
+    Find trades to improve a team by testing against all NBA teams.
+
+    Args:
+        team_abbreviation: Team abbreviation (e.g., 'LAL')
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        trade_player_id: Specific player to trade (if None, random selection)
+        trade_threshold: Value range for finding similar-valued players
+        samples: Number of trade scenarios to test
+        team_size: Number of players per team
+
+    Returns:
+        Tuple of (traded_player_name, acquired_player_name, base_score, best_score)
+    """
     trade_value_df = get_score_df(average_performances)
     score_list = []
     trade_list = []
@@ -368,44 +533,60 @@ def build_team_around_player(
     iterations=10,
     salary_cap=True,
 ):
+    """
+    Build the best team around a specified player.
+
+    Args:
+        player_name: Name of the player to build the team around
+        average_performances: DataFrame with player performance data
+        model: Trained XGBoost model for predictions
+        team_size: Number of players per team
+        iterations: Number of random teams to test
+        salary_cap: Whether to enforce salary cap constraints
+
+    Returns:
+        List of player IDs for the best team found (always includes the specified player)
+    """
     player_id = average_performances[
         average_performances.PLAYER_NAME == player_name
     ].PLAYER_ID
     player_pool = average_performances[
         ~average_performances["PLAYER_ID"].isin(player_id)
     ]
-    team_A_player_ids = (
+
+    # Initialize with the anchor player plus random teammates
+    best_team = (
         player_pool.sample(team_size - 1, replace=False)
         .PLAYER_ID.drop_duplicates()
         .to_list()
     )
-    team_A_player_ids = team_A_player_ids + player_id.to_list()
+    best_team = best_team + player_id.to_list()
 
     score_df = get_score_df(average_performances)
     value_score = get_salary_cap(average_performances, team_size)
     if not salary_cap:
         value_score = 1000
-    better_team = None
+
     for _ in tqdm(range(iterations)):
-        if better_team:
-            team_A_player_ids = better_team
-        team_B_player_ids = player_pool.sample(
+        # Create challenger team with same anchor player
+        challenger_teammates = player_pool.sample(
             team_size - 1, replace=False
         ).PLAYER_ID.to_list()
-        team_B_player_ids = team_B_player_ids + player_id.to_list()
+        challenger_team = challenger_teammates + player_id.to_list()
+
         plus_minus_prediction = simulate_arbitrary_matchup(
-            team_A_player_ids,
-            team_B_player_ids,
+            best_team,
+            challenger_team,
             average_performances=average_performances,
             model=model,
             team_size=team_size,
         )
         team_value_score = (
-            score_df[score_df.PLAYER_ID.isin(team_B_player_ids)].fillna(0.5).sum().SCORE
+            score_df[score_df.PLAYER_ID.isin(challenger_team)].fillna(0.5).sum().SCORE
         )
-        if plus_minus_prediction[0] > plus_minus_prediction[1]:
-            pass
-        else:
+        # If challenger beats current best and is within salary cap, update best team
+        if plus_minus_prediction[1] > plus_minus_prediction[0]:
             if team_value_score < value_score:
-                better_team = team_B_player_ids
-    return better_team
+                best_team = challenger_team
+
+    return best_team

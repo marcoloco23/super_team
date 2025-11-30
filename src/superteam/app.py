@@ -3,121 +3,82 @@ import pandas as pd
 import xgboost as xgb
 from nba_api.stats.endpoints import leaguegamefinder
 from nba_api.stats.static import teams
-from helpers import (
-    get_average_player_performances,
-    get_score_df,
-    get_team_player_ids,
-    insert_team_abbreviation,
-)
-from simulation import (
-    build_team_around_player,
-    get_super_team,
-    nba_trade_finder,
-    run_tournament,
-    simulate_arbitrary_matchup,
-    simulate_nba_matchup,
-    simulate_regular_season,
-    test_team,
-)
 import datetime
 import numpy as np
 from dateutil.relativedelta import relativedelta
 
+# Handle both relative and absolute imports for Streamlit compatibility
+try:
+    from .helpers import (
+        get_average_player_performances,
+        get_score_df,
+    )
+    from .simulation import (
+        build_team_around_player,
+        get_super_team,
+        nba_trade_finder,
+        run_tournament,
+        simulate_arbitrary_matchup,
+        simulate_nba_matchup,
+        simulate_regular_season,
+        evaluate_team,
+    )
+except ImportError:
+    from superteam.helpers import (
+        get_average_player_performances,
+        get_score_df,
+    )
+    from superteam.simulation import (
+        build_team_around_player,
+        get_super_team,
+        nba_trade_finder,
+        run_tournament,
+        simulate_arbitrary_matchup,
+        simulate_nba_matchup,
+        simulate_regular_season,
+        evaluate_team,
+    )
+
 gamefinder = leaguegamefinder.LeagueGameFinder()
 
 
-@st.cache
+@st.cache_data
 def load_data():
-    data = pd.read_csv("data/player_data.csv", index_col=0)
+    data = pd.read_csv("data/player_data.csv", index_col=0, low_memory=False)
+    # Convert MIN to numeric (stored as string in some rows)
+    if 'MIN' in data.columns and data['MIN'].dtype == object:
+        def parse_min(val):
+            if pd.isna(val):
+                return np.nan
+            if isinstance(val, (int, float)):
+                return float(val)
+            val = str(val)
+            if ':' in val:
+                parts = val.split(':')
+                try:
+                    return float(parts[0]) + float(parts[1]) / 60
+                except (ValueError, IndexError):
+                    return np.nan
+            try:
+                return float(val)
+            except ValueError:
+                return np.nan
+        data['MIN'] = data['MIN'].apply(parse_min)
     return data
 
 
-@st.cache
+@st.cache_data
 def get_teams_df():
     return pd.DataFrame(teams.get_teams())
 
 
-@st.cache
-def get_player_team_dict(teams_df):
-    team_abbreviations = teams_df.abbreviation.to_list()
-    player_team_dict = {}
-    for team_abb in team_abbreviations:
-        player_ids = get_team_player_ids(team_abb)
-        for player_id in player_ids:
-            player_team_dict[player_id] = team_abb
-    return player_team_dict
-
-
-def simulate_regular_season(average_performances, model, teams_df, team_size=13):
-    team_abbreviations = teams_df.abbreviation.to_list()
-    results_dict = {}
-    for i, team_A in enumerate(team_abbreviations):
-        win_loss_list = []
-        for team_B in [*team_abbreviations[:i], *team_abbreviations[i + 1 :]]:
-            plus_minus_prediction = simulate_nba_matchup(
-                team_A, team_B, average_performances, model=model, team_size=team_size
-            )
-            if plus_minus_prediction[0] > plus_minus_prediction[1]:
-                win_loss_list.append(1)
-            else:
-                win_loss_list.append(0)
-
-        results_dict[team_A] = np.mean(win_loss_list)
-    results = dict(sorted(results_dict.items(), key=lambda item: item[1], reverse=True))
-    return results
-
-
-def run_tournament(average_performances, model, rounds=1, team_count=16, team_size=13):
-    """Team Count must be a power of 2"""
-    winner = False
-    winner_name_list = []
-    winner_id_list = []
-    for _ in range(rounds):
-        player_pool = average_performances[["PLAYER_ID", "PLAYER_NAME"]]
-        team_list = []
-        team_number = team_count
-
-        if winner:
-            player_pool.drop(winner_team.index)
-            team_list.append(winner_team)
-            team_number = team_number - 1
-
-        for _ in range(team_number):
-            player_ids = player_pool.sample(team_size, replace=False).PLAYER_ID
-            team = average_performances[
-                average_performances["PLAYER_ID"].isin(player_ids)
-            ].drop_duplicates("PLAYER_NAME")
-            team_list.append(team)
-
-        for _ in range(int(np.log2(team_count))):
-            it = iter(team_list)
-            team_list = []
-            for teamA, teamB in zip(it, it):
-                team_A_ids = teamA.PLAYER_ID.to_list()
-                team_B_ids = teamB.PLAYER_ID.to_list()
-                plus_minus_prediction = simulate_arbitrary_matchup(
-                    team_A_ids,
-                    team_B_ids,
-                    average_performances=average_performances,
-                    model=model,
-                    team_size=team_size,
-                )
-
-                if plus_minus_prediction[0] > plus_minus_prediction[1]:
-                    team_list.append(teamA)
-                else:
-                    team_list.append(teamB)
-
-        if len(team_list) == 1:
-            winner_team = team_list[0]
-            winner = True
-            winner_name_list.append(
-                winner_team.sort_values("MIN", ascending=False).PLAYER_NAME.to_list()
-            )
-            winner_id_list.append(
-                winner_team.sort_values("MIN", ascending=False).PLAYER_ID.to_list()
-            )
-    return winner_name_list, winner_id_list
+@st.cache_data
+def get_player_team_dict(_data):
+    """Get a mapping of player IDs to team abbreviations from local data."""
+    # Sort by game date to get most recent team for each player
+    sorted_data = _data.sort_values('GAME_DATE')
+    # Get the last (most recent) team for each player
+    return sorted_data.groupby('PLAYER_ID')['TEAM_ABBREVIATION'].last().to_dict()
 
 
 def insert_team_abbreviation(average_performances, player_team_dict):
@@ -135,7 +96,7 @@ st.title("Super Team")
 # Load Data
 data = load_data()
 teams_df = get_teams_df()
-player_team_dict = get_player_team_dict(teams_df)
+player_team_dict = get_player_team_dict(data)
 
 
 # Set Options
@@ -250,7 +211,7 @@ if app == applications[4]:
             iterations=iterations,
             salary_cap=salary_cap,
         )
-        score = test_team(
+        score = evaluate_team(
             player_ids,
             average_performances,
             model=model,
@@ -276,7 +237,7 @@ if app == applications[5]:
             iterations=iterations,
             salary_cap=salary_cap,
         )
-        score = test_team(
+        score = evaluate_team(
             super_team_ids,
             average_performances,
             model=model,
